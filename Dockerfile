@@ -27,5 +27,5 @@ ENV PYTHONDONTWRITEBYTECODE=1
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')" || exit 1
 
-# Use server/app.py main() — satisfies OpenEnv multi-mode deployment requirement
-CMD ["python", "server/app.py"]
+# Start the FastAPI server
+CMD ["uvicorn", "env.server:app", "--host", "0.0.0.0", "--port", "7860", "--log-level", "info"]
