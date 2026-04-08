@@ -1,3 +1,13 @@
+---
+title: Sql Repair Env
+emoji: 🛠️
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
+
 # SQL Query Repair — RL Environment
 
 An [OpenEnv](https://github.com/openenv)-compliant reinforcement-learning environment
