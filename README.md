@@ -25,7 +25,7 @@ matching the compound errors that frustrate even experienced engineers.
 
 ## Live Demo
 
-🚀 **HuggingFace Space:** https://huggingface.co/spaces/yora3/sql-repair-env
+**HuggingFace Space:** https://huggingface.co/spaces/yora3/sql-repair-env
 
 ```bash
 # Health check
