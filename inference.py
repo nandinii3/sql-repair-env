@@ -1,10 +1,6 @@
 """
 inference.py — LLM agent baseline for the SQL Query Repair RL environment.
 
-The agent calls an LLM (via OpenAI-compatible API) to fix broken SQL queries.
-Each task is a 3-attempt episode; rewards are logged in the exact format
-required by the OpenEnv evaluation harness.
-
 Log format
 ----------
 [START] task=<task_name> env=<benchmark> model=<model_name>
@@ -14,8 +10,6 @@ Log format
 Usage
 -----
     export HF_TOKEN=hf_...
-    export MODEL_NAME=Qwen/Qwen2.5-72B-Instruct   # optional
-    export IMAGE_NAME=my-sql-repair-env:latest     # optional, None → localhost
     python inference.py
 """
 
@@ -23,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import textwrap
 from typing import Any
 
 from openai import OpenAI
@@ -32,10 +25,12 @@ from env import SQLRepairEnv, SQLRepairAction
 from env.client import Observation
 
 # ---------------------------------------------------------------------------
-# Configuration — all overridable via environment variables
+# Configuration
 # ---------------------------------------------------------------------------
 
-API_KEY: str | None = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+API_KEY: str | None = (
+    os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
+)
 API_BASE_URL: str = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME: str = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 IMAGE_NAME: str | None = os.getenv("IMAGE_NAME")
@@ -52,22 +47,15 @@ SYSTEM_PROMPT: str = (
 )
 
 # ---------------------------------------------------------------------------
-# Logging — exact format required by the evaluation harness
+# Logging
 # ---------------------------------------------------------------------------
 
 
 def log_start(task: str, env: str, model: str) -> None:
-    """Emit one [START] line per episode."""
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Any) -> None:
-    """
-    Emit one [STEP] line per environment interaction.
-
-    *error* must be the raw string message or None — never a quoted "null".
-    *reward* is formatted to 2 decimal places; *done* is lowercase true/false.
-    """
     error_val = error if error else "null"
     print(
         f"[STEP] step={step} action={action} "
@@ -77,12 +65,6 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Any) -> N
 
 
 def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
-    """
-    Emit one [END] line per episode.
-
-    *score* is formatted to 3 decimal places; *rewards* is a comma-separated
-    list of 2dp values, e.g. ``0.40,0.85,1.00``.
-    """
     r_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
         f"[END] success={str(success).lower()} steps={steps} "
@@ -97,22 +79,6 @@ def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> No
 
 
 def build_prompt(obs: Observation, step: int, rewards: list[float]) -> str:
-    """
-    Build the user-turn prompt sent to the LLM.
-
-    On the first step (step == 1) the prompt contains the task framing,
-    schema, and broken query.  On subsequent steps it also includes the
-    previous feedback and reward history so the model can learn from its
-    mistakes within the episode.
-
-    Args:
-        obs:     Current observation from the environment.
-        step:    Current step number (1-indexed).
-        rewards: Reward history from previous steps in this episode.
-
-    Returns:
-        Formatted prompt string (ready to pass as the user message).
-    """
     lines: list[str] = [
         f"## Task: {obs.task_description}",
         "",
@@ -127,7 +93,6 @@ def build_prompt(obs: Observation, step: int, rewards: list[float]) -> str:
         "```",
     ]
 
-    # Previous attempt feedback (steps 2 and 3)
     if step > 1 and obs.feedback:
         lines += [
             "",
@@ -157,23 +122,7 @@ def build_prompt(obs: Observation, step: int, rewards: list[float]) -> str:
 
 
 def call_llm(client: OpenAI, prompt: str, fallback_query: str = "") -> str:
-    """
-    Call the LLM and return the SQL string it produces.
-
-    Strips markdown code fences (```sql ... ```) from the response in case
-    the model ignores the system prompt instruction.  Falls back to
-    *fallback_query* on any exception so the episode can continue.
-
-    Args:
-        client:         Configured :class:`openai.OpenAI` instance.
-        prompt:         User-turn prompt built by :func:`build_prompt`.
-        fallback_query: SQL to return if the API call fails (typically the
-                        broken query from the observation so the env can
-                        at least record a 0.1 parse-error reward).
-
-    Returns:
-        Raw SQL string (whitespace-stripped, no surrounding backticks).
-    """
+    """Call LLM; fall back to fallback_query on ANY exception so episode continues."""
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
@@ -192,7 +141,6 @@ def call_llm(client: OpenAI, prompt: str, fallback_query: str = "") -> str:
 
 
 def _strip_markdown(text: str) -> str:
-    """Remove ```sql ... ``` or ``` ... ``` fences if the model added them."""
     stripped = text.strip()
     for fence_open in ("```sql\n", "```sql", "```\n", "```"):
         if stripped.startswith(fence_open):
@@ -208,25 +156,7 @@ def _strip_markdown(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def run_task(
-    env: SQLRepairEnv,
-    client: OpenAI,
-    task_id: str,
-) -> float:
-    """
-    Run a single episode for *task_id* and return the final score.
-
-    Always emits exactly one [START] and one [END] log line, even if an
-    unexpected exception occurs mid-episode.
-
-    Args:
-        env:     Connected :class:`SQLRepairEnv` instance.
-        client:  Configured :class:`openai.OpenAI` instance.
-        task_id: One of the TASK_IDS.
-
-    Returns:
-        Best reward achieved across all steps (0.0 on total failure).
-    """
+async def run_task(env: SQLRepairEnv, client: OpenAI, task_id: str) -> float:
     rewards: list[float] = []
     steps_taken: int = 0
     score: float = 0.0
@@ -235,7 +165,6 @@ async def run_task(
     log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        # Reset episode
         result = await env.reset(task_id=task_id)
         obs: Observation = result.observation
 
@@ -243,11 +172,9 @@ async def run_task(
             if result.done:
                 break
 
-            # Build prompt and call LLM
             prompt = build_prompt(obs, step, rewards)
             fixed_sql = call_llm(client, prompt, fallback_query=obs.broken_query)
 
-            # Submit action to environment
             result = await env.step(SQLRepairAction(fixed_query=fixed_sql))
 
             reward: float = result.reward
@@ -272,6 +199,10 @@ async def run_task(
         score = max(rewards) if rewards else 0.0
         success = score >= SUCCESS_THRESHOLD
 
+    except Exception as exc:  # noqa: BLE001
+        # Guarantees [END] is always emitted even on unexpected mid-episode errors
+        print(f"[WARN] run_task({task_id}) crashed: {exc}", flush=True)
+
     finally:
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
@@ -285,7 +216,19 @@ async def run_task(
 
 async def main() -> None:
     """Run all tasks sequentially and print a summary table."""
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+
+    # ── KEY FIX: OpenAI() raises OpenAIError if api_key is None or "".
+    # Use a placeholder string so the constructor always succeeds.
+    # Actual API errors surface in call_llm's try/except → fallback SQL.
+    effective_key = API_KEY or "no-key-set"
+    if not API_KEY:
+        print(
+            "[WARN] No API key found in HF_TOKEN / API_KEY / OPENAI_API_KEY. "
+            "LLM calls will use fallback (broken query). Set HF_TOKEN to enable LLM.",
+            flush=True,
+        )
+
+    client = OpenAI(base_url=API_BASE_URL, api_key=effective_key)
     env = await SQLRepairEnv.from_docker_image(IMAGE_NAME)
 
     scores: dict[str, float] = {}
