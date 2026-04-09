@@ -46,12 +46,12 @@ Evaluated using `Qwen/Qwen2.5-72B-Instruct` via HuggingFace Inference Router:
 
 | Task | Difficulty | Score | Notes |
 |------|------------|-------|-------|
-| `syntax_fix` | Easy | **0.95** | Solved on attempt 1 — perfect |
-| `logic_fix` | Medium | **0.95** | Solved on attempt 1 — perfect |
+| `syntax_fix` | Easy | **0.95** | Solved on attempt 1  perfect |
+| `logic_fix` | Medium | **0.95** | Solved on attempt 1  perfect |
 | `optimization_fix` | Hard | **0.40** | Fixes LEFT JOIN but misses RANK→DENSE_RANK |
 | **Average** | | **0.77** | |
 
-The hard task correctly challenges frontier models — Qwen consistently repairs one
+The hard task correctly challenges frontier models, Qwen consistently repairs one
 of the two bugs (LEFT JOIN + COALESCE) but fails to identify the RANK() → DENSE_RANK()
 tie-breaking issue, demonstrating genuine difficulty progression across tasks.
 
