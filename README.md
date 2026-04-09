@@ -2,6 +2,10 @@
 
 An OpenEnv compliant reinforcement-learning environment
 where an AI agent repairs broken SQL queries against a live in memory SQLite database.
+<img width="1849" height="938" alt="image" src="https://github.com/user-attachments/assets/30b0e905-0fb8-47e6-9ec3-721697699485" />
+
+<img width="1841" height="955" alt="image" src="https://github.com/user-attachments/assets/31430f3e-340d-46c2-9623-e36d7afee8fb" />
+
 
 ---
 
