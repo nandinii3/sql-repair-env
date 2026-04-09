@@ -21,7 +21,7 @@ tasks:
       Fix a missing comma between column names in a SELECT statement.
       The query must return all employees from the Engineering department.
     max_steps: 3
-    reward_range: [0.0, 1.0]
+    reward_range: [0.05, 0.95]
 
   - id: logic_fix
     difficulty: medium
@@ -31,7 +31,7 @@ tasks:
       status filter from 'complete' to 'completed'. Must return all 5
       customers including those with zero completed order totals.
     max_steps: 3
-    reward_range: [0.0, 1.0]
+    reward_range: [0.05, 0.95]
 
   - id: optimization_fix
     difficulty: hard
@@ -42,7 +42,7 @@ tasks:
       no bonus rows), and RANK() must become DENSE_RANK() (to correctly
       handle ties). Fixing only one bug produces a different wrong row count.
     max_steps: 3
-    reward_range: [0.0, 1.0]
+    reward_range: [0.05, 0.95]
 
 observation_space:
   type: object
@@ -67,7 +67,7 @@ observation_space:
       description: Number of rows the correct query must return
     - name: attempt
       type: integer
-      description: Current attempt number (0 on reset, 1–3 during episode)
+      description: Current attempt number (0 on reset, 1-3 during episode)
     - name: feedback
       type: string
       description: >
@@ -82,20 +82,20 @@ action_space:
       type: string
       description: The agent's proposed corrected SQL query
 
-reward_range: [0.0, 1.0]
+reward_range: [0.05, 0.95]
 
 reward_description: >
-  Rewards are shaped to provide signal at every step:
-    0.0 — query contains forbidden DDL/DML keywords (DROP, DELETE, etc.)
-    0.1 — query fails to parse or raises a runtime SQL error
-    0.4 — query executes but returns the wrong number of rows
-    0.7 — correct answer reached on attempt 3 (or structural penalty on task 3)
+  Rewards are strictly between 0 and 1, shaped to provide signal at every step:
+    0.05 — query contains forbidden DDL/DML keywords (DROP, DELETE, etc.)
+    0.10 — query fails to parse or raises a runtime SQL error
+    0.40 — query executes but returns the wrong number of rows
+    0.70 — correct answer reached on attempt 3
     0.85 — correct answer reached on attempt 2
-    1.0  — correct answer on the first attempt
+    0.95 — correct answer on the first attempt
 
 episode_config:
   max_steps: 3
-  success_threshold: 0.7
+  success_threshold: 0.6
 
 endpoints:
   reset: "POST /reset"

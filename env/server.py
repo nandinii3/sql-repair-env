@@ -288,7 +288,7 @@ async def step_endpoint(action: SQLRepairAction) -> StepResult:
             "(DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE, CREATE, "
             "REPLACE, ATTACH, DETACH, or PRAGMA)."
         )
-        final_score = 0.0
+        final_score = 0.05  # strictly > 0 as required by validator
         done = attempt >= MAX_ATTEMPTS
         last_score = final_score
         last_feedback = feedback
@@ -312,9 +312,10 @@ async def step_endpoint(action: SQLRepairAction) -> StepResult:
     )
 
     # ── Apply attempt-based scaling for correct answers ────────────────────
+    # Scores must be strictly between 0 and 1 (validator rejects 0.0 and 1.0)
     if base_score == 1.0:
         if attempt == 1:
-            final_score = 1.0
+            final_score = 0.95
         elif attempt == 2:
             final_score = 0.85
         else:

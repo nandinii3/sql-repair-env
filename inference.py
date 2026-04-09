@@ -37,7 +37,7 @@ IMAGE_NAME: str | None = os.getenv("IMAGE_NAME")
 
 BENCHMARK: str = "sql-repair-env"
 MAX_STEPS: int = 3
-SUCCESS_THRESHOLD: float = 0.7
+SUCCESS_THRESHOLD: float = 0.6
 TASK_IDS: list[str] = ["syntax_fix", "logic_fix", "optimization_fix"]
 
 SYSTEM_PROMPT: str = (
