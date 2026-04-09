@@ -70,7 +70,7 @@ natural-language description of what needs fixing. The agent submits fixed queri
 
 ### Task 1 — `syntax_fix` (Easy)
 
-**Schema:** `employees(id, name, department, salary)` — 10 rows  
+**Schema:** `employees(id, name, department, salary)` 10 rows  
 **Bug:** Missing comma between column names in the SELECT list → parse error  
 **Broken:** `SELECT id name department FROM employees WHERE department = 'Engineering'`  
 **Fixed:** `SELECT id, name, department FROM employees WHERE department = 'Engineering'`  
@@ -148,7 +148,7 @@ ORDER BY department, dept_rank, name;
 | `broken_query` | `string` | The SQL query the agent must repair |
 | `expected_row_count` | `integer` | How many rows the correct query must return |
 | `attempt` | `integer` | Current attempt number (0 on reset, 1–3 during episode) |
-| `feedback` | `string` | Result of the last attempt — empty on reset |
+| `feedback` | `string` | Result of the last attempt empty on reset |
 
 ---
 
