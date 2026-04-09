@@ -8,7 +8,7 @@ pinned: false
 ---
 
 
-# SQL Query Repair — RL Environment
+# SQL Query Repair (RL Environment)
 
 An OpenEnv compliant reinforcement-learning environment
 where an AI agent repairs broken SQL queries against a live in memory SQLite database.
