@@ -1,5 +1,15 @@
+<<<<<<< HEAD
+---
+title: Sql Repair Env
+emoji: 🛠️
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
 
-# SQL Query Repair ( RL Environment )
+
+# SQL Query Repair (RL Environment)
 
 An OpenEnv compliant reinforcement-learning environment
 where an AI agent repairs broken SQL queries against a live in memory SQLite database.
