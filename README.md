@@ -1,17 +1,12 @@
----
-title: Sql Repair Env
-emoji: 🛠️
-colorFrom: blue
-colorTo: green
-sdk: docker
-pinned: false
----
 
-
-# SQL Query Repair (RL Environment)
+# SQL Query Repair ( RL Environment )
 
 An OpenEnv compliant reinforcement-learning environment
 where an AI agent repairs broken SQL queries against a live in memory SQLite database.
+<img width="1849" height="938" alt="image" src="https://github.com/user-attachments/assets/30b0e905-0fb8-47e6-9ec3-721697699485" />
+
+<img width="1841" height="955" alt="image" src="https://github.com/user-attachments/assets/31430f3e-340d-46c2-9623-e36d7afee8fb" />
+
 
 ---
 
@@ -31,7 +26,7 @@ matching the compound errors that frustrate even experienced engineers.
 
 ## Live Demo
 
-🚀 **HuggingFace Space:** https://huggingface.co/spaces/yora3/sql-repair-env
+**HuggingFace Space:** https://huggingface.co/spaces/yora3/sql-repair-env
 
 ```bash
 # Health check
@@ -56,12 +51,12 @@ Evaluated using `Qwen/Qwen2.5-72B-Instruct` via HuggingFace Inference Router:
 
 | Task | Difficulty | Score | Notes |
 |------|------------|-------|-------|
-| `syntax_fix` | Easy | **0.95** | Solved on attempt 1 — perfect |
-| `logic_fix` | Medium | **0.95** | Solved on attempt 1 — perfect |
+| `syntax_fix` | Easy | **0.95** | Solved on attempt 1  perfect |
+| `logic_fix` | Medium | **0.95** | Solved on attempt 1  perfect |
 | `optimization_fix` | Hard | **0.40** | Fixes LEFT JOIN but misses RANK→DENSE_RANK |
 | **Average** | | **0.77** | |
 
-The hard task correctly challenges frontier models — Qwen consistently repairs one
+The hard task correctly challenges frontier models, Qwen consistently repairs one
 of the two bugs (LEFT JOIN + COALESCE) but fails to identify the RANK() → DENSE_RANK()
 tie-breaking issue, demonstrating genuine difficulty progression across tasks.
 
@@ -80,7 +75,7 @@ natural-language description of what needs fixing. The agent submits fixed queri
 
 ### Task 1 — `syntax_fix` (Easy)
 
-**Schema:** `employees(id, name, department, salary)` — 10 rows  
+**Schema:** `employees(id, name, department, salary)` 10 rows  
 **Bug:** Missing comma between column names in the SELECT list → parse error  
 **Broken:** `SELECT id name department FROM employees WHERE department = 'Engineering'`  
 **Fixed:** `SELECT id, name, department FROM employees WHERE department = 'Engineering'`  
@@ -158,7 +153,7 @@ ORDER BY department, dept_rank, name;
 | `broken_query` | `string` | The SQL query the agent must repair |
 | `expected_row_count` | `integer` | How many rows the correct query must return |
 | `attempt` | `integer` | Current attempt number (0 on reset, 1–3 during episode) |
-| `feedback` | `string` | Result of the last attempt — empty on reset |
+| `feedback` | `string` | Result of the last attempt empty on reset |
 
 ---
 
