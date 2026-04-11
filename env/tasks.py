@@ -82,7 +82,6 @@ CREATE TABLE customers (
     name   TEXT    NOT NULL,
     region TEXT    NOT NULL
 );
-
 CREATE TABLE orders (
     id          INTEGER PRIMARY KEY,
     customer_id INTEGER NOT NULL,
@@ -98,29 +97,21 @@ INSERT INTO customers (id, name, region) VALUES
 (3, 'Cloud Nine',     'East'),
 (4, 'Delta Systems',  'West'),
 (5, 'Echo Partners',  'North');
-
 INSERT INTO orders (id, customer_id, amount, status) VALUES
--- Acme Corp (customer 1): mix of all statuses
 (1,  1, 120.50, 'completed'),
 (2,  1, 340.00, 'completed'),
 (3,  1,  85.75, 'pending'),
 (4,  1, 210.00, 'cancelled'),
--- Bright Ideas (customer 2): only pending/cancelled — NO completed
 (5,  2, 500.00, 'pending'),
 (6,  2, 125.00, 'cancelled'),
 (7,  2,  99.99, 'pending'),
--- Cloud Nine (customer 3): mix
 (8,  3, 780.00, 'completed'),
 (9,  3, 450.00, 'completed'),
 (10, 3, 200.00, 'pending'),
 (11, 3,  60.00, 'cancelled'),
--- Delta Systems (customer 4): only completed
 (12, 4, 990.00, 'completed'),
 (13, 4, 110.50, 'completed'),
 (14, 4, 375.25, 'completed'),
--- Echo Partners (customer 5): no orders at all
--- (intentionally empty to test LEFT JOIN behaviour)
--- Extra orders for realism
 (15, 1, 175.00, 'completed'),
 (16, 2, 300.00, 'cancelled'),
 (17, 3, 420.00, 'completed'),
@@ -135,8 +126,6 @@ INSERT INTO orders (id, customer_id, amount, status) VALUES
             "WHERE o.status = 'complete'\n"
             "GROUP BY c.name"
         ),
-        # Accepted correct form — agents may write equivalent SQL.
-        # The grader only checks row count, not exact SQL text.
         "correct_query": (
             "SELECT c.name, COALESCE(SUM(CASE WHEN o.status = 'completed' "
             "THEN o.amount ELSE 0 END), 0) AS total\n"
@@ -147,127 +136,175 @@ INSERT INTO orders (id, customer_id, amount, status) VALUES
         "expected_row_count": 5,
         "check_correlated_subquery": False,
     },
-
-    # -----------------------------------------------------------------------
+    
+# -----------------------------------------------------------------------
     # Task 3 — HARD — optimization_fix
     #
-    # Goal: return the top-2 employees by total compensation (salary + bonuses)
-    # within each department.  Employees with NO bonus rows must still appear.
+    # Goal: find users who completed a 3-step onboarding funnel IN ORDER
+    # within the first 24 hours (86400 seconds) after signup.
     #
     # Two interacting bugs — fixing only one yields a *different* wrong count:
-    #   Bug A: RANK() instead of DENSE_RANK()
-    #          → Alice & Bob both score 100k in Engineering, so the next person
-    #            (Carol, 85k) jumps to RANK 3 and is silently excluded.
-    #   Bug B: INNER JOIN bonuses instead of LEFT JOIN + COALESCE
-    #          → Frank (Sales) and Iris (HR) have no bonus row; INNER JOIN
-    #            drops them from the aggregation pool entirely.
+    #   Bug A: time window is 172800s (48h) instead of 86400s (24h)
+    #          → Bob and Jack slip through (they finished between 24h-48h)
+    #   Bug B: step ordering is not validated (ts1 < ts2 < ts3 missing)
+    #          → Carol, Frank, Kate qualify despite completing steps out of order
     #
     # Proof that fixing only one bug is insufficient (verified by SQLite):
-    #   broken (RANK + INNER JOIN)      → 5 rows   ✗
-    #   fix A only (DENSE_RANK + INNER) → 6 rows   ✗
-    #   fix B only (RANK + LEFT JOIN)   → 7 rows   ✗
-    #   correct (DENSE_RANK + LEFT JOIN)→ 8 rows   ✓
+    #   broken  (48h + no order check)  → 8 rows  ✗
+    #   fix A only (24h + no order)     → 7 rows  ✗
+    #   fix B only (48h + ordered)      → 5 rows  ✗
+    #   correct (24h + ordered)         → 4 rows  ✓
     # -----------------------------------------------------------------------
-    {
-        "task_id": "optimization_fix",
-        "difficulty": "hard",
-        "task_description": (
-            "This CTE-based query should return the top 2 employees by total "
-            "compensation (salary plus any bonus payments) within each department. "
-            "Employees who received no bonuses must still be included in the ranking. "
-            "The query is returning fewer rows than expected due to two independent "
-            "bugs in the join and window-function logic. Identify and fix both."
-        ),
-        "schema_ddl": """
-CREATE TABLE employees (
+
+   {
+    "task_id": "optimization_fix",
+    "difficulty": "hard",
+    "task_description": (
+         "This CTE query finds users who completed a 3-step onboarding funnel. "
+    "A user qualifies only if they completed all three steps in the correct "
+    "sequence (step1 → step2 → step3) within 24 hours of signup. "
+    "The query is returning incorrect results. Identify and fix all the bugs."
+    ),
+    "schema_ddl": """
+CREATE TABLE users (
+    id        INTEGER PRIMARY KEY,
+    name      TEXT    NOT NULL,
+    channel   TEXT    NOT NULL,
+    signup_ts INTEGER NOT NULL
+);
+
+CREATE TABLE events (
     id         INTEGER PRIMARY KEY,
-    name       TEXT    NOT NULL,
-    department TEXT    NOT NULL,
-    salary     REAL    NOT NULL
-);
-
-CREATE TABLE bonuses (
-    id          INTEGER PRIMARY KEY,
-    employee_id INTEGER NOT NULL,
-    amount      REAL    NOT NULL
+    user_id    INTEGER NOT NULL,
+    event_type TEXT    NOT NULL,
+    event_ts   INTEGER NOT NULL
 );
 """.strip(),
-        "seed_sql": """
--- Engineering: Alice & Bob both earn 100k total → tie at rank-1
--- Carol (85k) must reach dept_rank 2 via DENSE_RANK (RANK gives her rank 3)
-INSERT INTO employees (id, name, department, salary) VALUES
-(1, 'Alice', 'Engineering', 80000),
-(2, 'Bob',   'Engineering', 85000),
-(3, 'Carol', 'Engineering', 75000),
-(4, 'Dave',  'Engineering', 65000),
--- Sales: Frank has NO bonus row → INNER JOIN silently drops him
-(5, 'Eve',   'Sales', 65000),
-(6, 'Frank', 'Sales', 60000),
-(7, 'Grace', 'Sales', 55000),
--- HR: Iris has NO bonus row → INNER JOIN silently drops her
-(8, 'Henry', 'HR', 50000),
-(9, 'Iris',  'HR', 55000);
+    "seed_sql": """
+INSERT INTO users (id, name, channel, signup_ts) VALUES
+(1,  'Alice', 'organic',  1000000),
+(2,  'Bob',   'organic',  1000000),
+(3,  'Carol', 'organic',  1000000),
+(4,  'Dave',  'paid',     1000000),
+(5,  'Eve',   'paid',     1000000),
+(6,  'Frank', 'paid',     1000000),
+(7,  'Grace', 'referral', 1000000),
+(8,  'Hiro',  'referral', 1000000),
+(9,  'Iris',  'referral', 1000000),
+(10, 'Jack',  'referral', 1000000);
 
--- Alice  80k + 20k = 100k
--- Bob    85k + 15k = 100k  (tie with Alice)
--- Carol  75k + 10k =  85k
--- Dave   65k +  5k =  70k
--- Eve    65k + 20k =  85k
--- Frank  60k +  0  =  60k  (NO bonus row — tests LEFT JOIN)
--- Grace  55k +  5k =  60k  (ties with Frank when Frank is included)
--- Henry  50k +  8k =  58k
--- Iris   55k +  0  =  55k  (NO bonus row — tests LEFT JOIN)
-INSERT INTO bonuses (id, employee_id, amount) VALUES
-(1, 1, 20000),
-(2, 2, 15000),
-(3, 3, 10000),
-(4, 4,  5000),
-(5, 5, 20000),
-(6, 7,  5000),
-(7, 8,  8000);
+-- Bug map (signup_ts=1000000, 24h = ts <= 1086400):
+-- Alice: step1→2→3 in order, within 24h, no retries       → QUALIFIES (all 3 fixes)
+-- Bob  : step1→2→3, finishes at 90000s (25h)              → bug A (window 48h lets him through)
+-- Carol: step3→1→2 OUT OF ORDER within 24h                → bug B (no order check)
+-- Dave : step1 done TWICE — first at 1h, retry at 2h
+--        step2, step3 in order within 24h
+--        MAX(step1)=1002000, MIN(step1)=1001000
+--        With MAX: ts1=1002000 < ts2=1050000 < ts3=1060000 ✓ qualifies wrongly
+--        With MIN: ts1=1001000 < ts2=1050000 < ts3=1060000 ✓ still qualifies
+--        Wait — need Dave to only qualify with MAX not MIN
+--        Dave: step1 first at 1001000, step2 at 1002000, step1 RETRY at 1003000
+--              step3 at 1004000
+--        MAX(step1)=1003000 > MIN(step2)=1002000 → ordering fails with MAX
+--        MIN(step1)=1001000 < step2=1002000 < step3=1004000 → qualifies with MIN
+-- Eve : step1→2→3 in order within 24h, no retries         → QUALIFIES
+-- Frank: steps out of order (2→1→3), within 24h           → bug B only
+-- Grace: step1 only, never finishes                        → never qualifies
+-- Hiro : step1→2→3 in order within 24h                    → QUALIFIES
+-- Iris : step1→2→3, finishes at 100000s (27h)             → bug A only
+-- Jack : step1 done twice — first at 1h, retry at 20h
+--        step2 at 21h, step3 at 22h, all within 24h
+--        MIN(step1)=1001000: ts1<ts2<ts3 ✓ qualifies
+--        MAX(step1)=1072000: ts1>ts2 ✗ fails ordering → bug C drops him
+--        So Jack: qualifies with MIN+correct window, fails with MAX
+
+INSERT INTO events (id, user_id, event_type, event_ts) VALUES
+-- Alice: clean, qualifies
+(1,  1, 'step1_complete', 1001000),
+(2,  1, 'step2_complete', 1010000),
+(3,  1, 'step3_complete', 1020000),
+-- Bob: finishes outside 24h window (90400s after signup)
+(4,  2, 'step1_complete', 1001000),
+(5,  2, 'step2_complete', 1040000),
+(6,  2, 'step3_complete', 1090400),
+-- Carol: out of order (3→1→2)
+(7,  3, 'step3_complete', 1001000),
+(8,  3, 'step1_complete', 1002000),
+(9,  3, 'step2_complete', 1003000),
+-- Dave: step1 retried AFTER step2 — MAX(step1) > step2 breaks ordering
+(10, 4, 'step1_complete', 1001000),
+(11, 4, 'step2_complete', 1010000),
+(12, 4, 'step1_complete', 1020000),
+(13, 4, 'step3_complete', 1030000),
+-- Eve: clean, qualifies
+(14, 5, 'step1_complete', 1005000),
+(15, 5, 'step2_complete', 1015000),
+(16, 5, 'step3_complete', 1025000),
+-- Frank: out of order (2→1→3)
+(17, 6, 'step2_complete', 1001000),
+(18, 6, 'step1_complete', 1010000),
+(19, 6, 'step3_complete', 1020000),
+-- Grace: incomplete
+(20, 7, 'step1_complete', 1001000),
+-- Hiro: clean, qualifies
+(21, 8, 'step1_complete', 1002000),
+(22, 8, 'step2_complete', 1012000),
+(23, 8, 'step3_complete', 1022000),
+-- Iris: finishes at 27h (outside 24h window)
+(24, 9, 'step1_complete', 1001000),
+(25, 9, 'step2_complete', 1050000),
+(26, 9, 'step3_complete', 1097200),
+-- Jack: step1 retried at 20h mark — MAX(step1) > step2, breaks ordering
+(27, 10,'step1_complete', 1001000),
+(28, 10,'step2_complete', 1010000),
+(29, 10,'step1_complete', 1072000),
+(30, 10,'step3_complete', 1080000);
 """.strip(),
-        "broken_query": (
-            "WITH comp AS (\n"
-            "    SELECT e.id, e.name, e.department,\n"
-            "           e.salary + SUM(b.amount) AS total_comp\n"
-            "    FROM employees e\n"
-            "    INNER JOIN bonuses b ON e.id = b.employee_id\n"
-            "    GROUP BY e.id, e.name, e.department, e.salary\n"
-            "),\n"
-            "ranked AS (\n"
-            "    SELECT name, department, total_comp,\n"
-            "           RANK() OVER (PARTITION BY department\n"
-            "                        ORDER BY total_comp DESC) AS dept_rank\n"
-            "    FROM comp\n"
-            ")\n"
-            "SELECT name, department, total_comp, dept_rank\n"
-            "FROM ranked\n"
-            "WHERE dept_rank <= 2\n"
-            "ORDER BY department, dept_rank, name;"
-        ),
-        "correct_query": (
-            "WITH comp AS (\n"
-            "    SELECT e.id, e.name, e.department,\n"
-            "           e.salary + COALESCE(SUM(b.amount), 0) AS total_comp\n"
-            "    FROM employees e\n"
-            "    LEFT JOIN bonuses b ON e.id = b.employee_id\n"
-            "    GROUP BY e.id, e.name, e.department, e.salary\n"
-            "),\n"
-            "ranked AS (\n"
-            "    SELECT name, department, total_comp,\n"
-            "           DENSE_RANK() OVER (PARTITION BY department\n"
-            "                              ORDER BY total_comp DESC) AS dept_rank\n"
-            "    FROM comp\n"
-            ")\n"
-            "SELECT name, department, total_comp, dept_rank\n"
-            "FROM ranked\n"
-            "WHERE dept_rank <= 2\n"
-            "ORDER BY department, dept_rank, name;"
-        ),
-        # expected: 3 (Engineering) + 3 (Sales) + 2 (HR) = 8
-        "expected_row_count": 8,
-        "check_correlated_subquery": False,
-    },
+    "broken_query": (
+        "WITH steps AS (\n"
+        "    SELECT\n"
+        "        u.id, u.name, u.channel,\n"
+        "        MAX(CASE WHEN e.event_type = 'step1_complete' THEN e.event_ts END) AS ts1,\n"
+        "        MAX(CASE WHEN e.event_type = 'step2_complete' THEN e.event_ts END) AS ts2,\n"
+        "        MAX(CASE WHEN e.event_type = 'step3_complete' THEN e.event_ts END) AS ts3,\n"
+        "        u.signup_ts\n"
+        "    FROM users u\n"
+        "    LEFT JOIN events e ON u.id = e.user_id\n"
+        "    GROUP BY u.id, u.name, u.channel, u.signup_ts\n"
+        ")\n"
+        "SELECT name, channel\n"
+        "FROM steps\n"
+        "WHERE ts1 IS NOT NULL\n"
+        "  AND ts2 IS NOT NULL\n"
+        "  AND ts3 IS NOT NULL\n"
+        "  AND ts3 - signup_ts <= 172800\n"
+        "ORDER BY name;"
+    ),
+    "correct_query": (
+        "WITH steps AS (\n"
+        "    SELECT\n"
+        "        u.id, u.name, u.channel,\n"
+        "        MIN(CASE WHEN e.event_type = 'step1_complete' THEN e.event_ts END) AS ts1,\n"
+        "        MIN(CASE WHEN e.event_type = 'step2_complete' THEN e.event_ts END) AS ts2,\n"
+        "        MIN(CASE WHEN e.event_type = 'step3_complete' THEN e.event_ts END) AS ts3,\n"
+        "        u.signup_ts\n"
+        "    FROM users u\n"
+        "    LEFT JOIN events e ON u.id = e.user_id\n"
+        "    GROUP BY u.id, u.name, u.channel, u.signup_ts\n"
+        ")\n"
+        "SELECT name, channel\n"
+        "FROM steps\n"
+        "WHERE ts1 IS NOT NULL\n"
+        "  AND ts2 IS NOT NULL\n"
+        "  AND ts3 IS NOT NULL\n"
+        "  AND ts1 < ts2 AND ts2 < ts3\n"
+        "  AND ts3 - signup_ts <= 86400\n"
+        "ORDER BY name;"
+    ),
+    # Alice, Eve, Hiro = 3 qualifying users
+    "expected_row_count": 3,
+    "check_correlated_subquery": False,
+},
 ]
 
 # Convenience lookup by task_id
