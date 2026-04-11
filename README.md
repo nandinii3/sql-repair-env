@@ -71,7 +71,7 @@ natural language description of what needs fixing. The agent submits fixed queri
 
 ## Tasks
 
-### Task 1 — `syntax_fix` (Easy)
+### Task 1  `syntax_fix` (Easy)
 
 **Schema:** `employees(id, name, department, salary)` 10 rows  
 **Bug:** Missing comma between column names in the SELECT list → parse error  
@@ -81,7 +81,7 @@ natural language description of what needs fixing. The agent submits fixed queri
 
 ---
 
-### Task 2 — `logic_fix` (Medium)
+### Task 2  `logic_fix` (Medium)
 
 **Schema:** `customers(id, name, region)` + `orders(id, customer_id, amount, status)`  
 **Bugs (2):**
@@ -100,7 +100,7 @@ GROUP BY c.name
 
 ---
 
-### Task 3 — `optimization_fix` (Hard)
+### Task 3  `optimization_fix` (Hard)
 
 **Schema:** `users(id, name, channel, signup_ts)` + `events(id, user_id, event_type, event_ts)`
 
